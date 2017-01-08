@@ -1,0 +1,93 @@
+startsWith str, sequence {
+	return #str >= #sequence and str[:#sequence] = sequence
+}
+
+endsWith str, sequence {
+	return #str >= #sequence and str[-#sequence:] = sequence
+}
+
+strip &str {
+	str ~= "^\\s*", "", "\\s*$", ""
+}
+
+function parsePamflett(char="#") {
+	obj := [new map]
+	set := { |key, val|
+		if [ obj[-1] is list ] do
+			index := parseInteger(key) if [ key =~ "[0-9]+" ] else push(#obj[-1])
+			obj[-1] += "" while [ index >= #obj[-1] ]
+			obj[-1][index] = val			
+		else
+			obj[-1][key] = val
+		done
+	}
+	level := 1
+	for line do
+		continue if [ line =~ "\\s*" ]
+		while [ not startsWith(line, char*level) and startsWith(line, char) ] do
+			level --
+			obj = obj[:-1]
+		done
+		if startsWith(line, char*level) do
+			stmt := line[level:]
+			if startsWith(stmt, char) do
+				error("syntax error on line `"..line.."': wrong level (should be "..level..")")
+			done
+			if (match("([^=]+)=(.*)", stmt))() | tryPull(l, key, val) do
+				strip key
+				strip val
+				set key, val
+				continue
+			done
+			if endsWith(stmt, "[]:") do
+				key := stmt[:-3]
+				strip key
+				val := []
+				until [ not tryPeek(x) or startsWith(peek(), char) ] do
+					val += pull()
+				done
+				set key, val
+				continue
+			done
+			if endsWith(stmt, ":") do
+				key := stmt[:-1]
+				strip key
+				val := ""
+				until startsWith(peek(), char) do
+					val .= "\n" if [ #val > 0 ]
+					val .= pull()
+				done
+				set key, val
+				continue
+			done
+			if endsWith(stmt, "[]") do
+				key := stmt[:-2]
+				strip key
+				val := new list
+				set key, val
+				obj += val
+				level ++
+				continue
+			done
+			if [ stmt =~ ".*[^\\wäöå]$" ] do
+				new_char := stmt[-1:]
+				key := stmt[:-1]
+				strip key
+				val := [while tryPeek(new_stmt) do
+					break if startsWith(new_stmt, char)
+					pull()
+				done | parsePamflett(char=new_char)]
+				set key, val
+				continue
+			done
+			strip stmt
+			val := new map
+			set stmt, val
+			obj += val
+			level ++
+		else
+			error("syntax error on line `"..line.."': wrong level (should be "..level..")")
+		done
+	done
+	return obj[0]
+}

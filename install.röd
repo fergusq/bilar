@@ -1,0 +1,149 @@
+extract to, archive, members... {
+	logExec("tar", "--extract", "--xz", "--file", archive, "-C", to, *members)
+}
+
+function installBil(filename) {
+	
+	/* parse file name*/
+	
+	fname := basename(filename)
+	fname_arr := match("(([a-zäöå][a-zäöå_\\-0-9]+)\\.("..VERSION_REGEX..")\\.bil).tar.xz", fname)
+	
+	if [ #fname_arr = 0 ] do
+		errprint("Bil file '", fname, "' is not valid (file name is illegal).\n")
+		return FALSE
+	done
+	
+	fname_arr() | pull(fname, dname, pname, version, major, minor, patch)
+	
+	/* check if package is preinstalled */
+	
+	if isVersionInstalled(pname, version) do
+		errprint("Bil '", pname, ".", version, "' is already installed.\n")
+		return TRUE
+	done
+	
+	/* extract contents */
+	
+	install_dir := figureOutWhereBilarAre()
+	extract(install_dir, filename, dname)
+	
+	/* check that extraction succeeded */
+	
+	unless fileExists(install_dir .."/".. dname) do
+		errprint("Bil file '", filename, "' is not valid ")
+		errprint("(invalid directory structure or package file).\n")
+		return FALSE
+	done
+	
+	errprintUncleanState = {
+		errprint("INSTALLATION DIRECTORY IS IN UNCLEAN STATE.\n")
+		errprint("Remove '", install_dir, "/", dname, "' manually.")
+	}
+	
+	/* check that package contained required files */
+	
+	unless [isDirectory(install_dir .."/".. dname),
+		fileExists(install_dir .."/".. dname .."/init.röd"),
+		isFile(install_dir .."/".. dname .."/init.röd"),
+		fileExists(install_dir .."/".. dname .."/manifest.pmf"),
+		isFile(install_dir .."/".. dname .."/manifest.pmf")] do
+		errprint("Bil file '", filename, "' is not valid (invalid directory structure).\n")
+		errprintUncleanState
+		return FALSE
+	done
+	
+	/* parse manifest */
+	
+	manifest := readLines(install_dir .."/".. dname .."/manifest.pmf") | parsePamflett()
+	
+	errors := stream()
+	found_error := validateBilManifest(manifest, errors)
+	
+	/* check that manifest is semantically valid */
+	
+	unless [ manifest["name"] = pname and manifest["version"] = version ] do
+		found_error = TRUE
+		errors.push("Manifest contradicts file name.\n")
+	done
+	
+	errors.finish()
+	
+	/* print possible errors */
+	
+	if [ found_error ] do
+		errprint("Bil file '", filename, "' is not valid.\n")
+		errors.pullAll | errprint(it) for it
+		errprintUncleanState
+		return FALSE
+	done
+	
+	/* install executables */
+	
+	for executable in manifest["executables"] do
+		exefile := install_dir .."/".. dname .."/".. executable
+		exedir := figureOutWhereBilExecutablesAre()
+		
+		unless [ fileExists(exefile) and isFile(exefile) ] do
+			errprint("Bil file '", filename, "' is not valid.\n")
+			errprint("It claims to contain the executable '"..executable.."',")
+			errprint(" but that does not exist.\n")
+			errprintUncleanState
+			return FALSE
+		done
+		
+		base_exe := basename(executable) /*            eg. tool.röd */
+		base_exe ~= ".röd$", "" /* removes .röd suffix eg. tool     */
+		
+		if fileExists(exedir.."/"..base_exe) do
+			/* if a more recent version is already installed, do not replace that */
+			if [ bil_database[pname]? and
+				compareVersions(version, bil_database[pname][0].version) <= 0 ] do
+				errprint("Executable '"..executable.."' did not overwrite the current file.\n")
+			else
+				errprint("Executable '"..executable.."' overwrited a previous file.\n")
+				cp exefile, exedir.."/"..base_exe
+				chmod "+x", exedir.."/"..base_exe
+			done
+		done
+	done if [ manifest["executables"]? ]
+	
+	/* check that dependencies are fulfilled */
+	
+	for dependency in manifest["dependencies"] do
+		max_version := if [ dependency is map and dependency["max_version"]? ] do
+			push(dependency["max_version"])
+		else
+			push("")
+		done
+		min_version := if [ dependency is map and dependency["min_version"]? ] do
+			push(dependency["min_version"])
+		else
+			push("")
+		done
+		dep_name := if [ dependency is string ] do
+			push(dependency)
+		else
+			push(dependency["name"])
+		done
+		unless isCompatibleInstalled(dep_name, min_version, max_version) do
+			errprint("Bil '", pname, ".", version, "' depends on ")
+			errprint("'", dep_name, "', but no compatible version is installed.\n")
+		done
+	done if [ manifest["executables"]? ]
+	
+	/* add package to the database */
+	
+	unless [ bil_database[pname]? ] do
+		bil_database[pname] = new list<<Bil>>
+	done
+	bil_database[pname] += new Bil(pname, version, install_dir .."/".. dname)
+	
+	bil_database[pname] = [sort(bil_database[pname], cmp={ |a, b|
+		return -compareVersions(a.version, b.version)
+	})]
+	
+	saveBilDatabase(bil_database)
+	
+	return TRUE
+}

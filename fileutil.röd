@@ -1,0 +1,11 @@
+function logExec cmd, args... {errprint(">>> ",cmd," ",args&" ","\n");{}|bufferedExec(cmd,*args)|{}}
+function dirpath dir {dir~="/$","";[dir]}
+function basename file {file~="^(.*/)*","";[file]}
+function mkdir dir {logExec("mkdir", "-p", dir)}
+function expectDir path {
+	mkdir(path) unless fileExists(path)
+	error("'"..path.."' is not a directory") unless isDirectory(path)
+}
+function cp file1, file2 {logExec("cp", file1, file2)}
+function mv file1, file2 {logExec("mv", file1, file2)}
+function chmod args... {logExec("chmod", *args)}

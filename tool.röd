@@ -1,0 +1,127 @@
+case x {
+	default := TRUE
+	push { |ys...|; for y in ys if [ x =~ y ] do rval := default; default = FALSE; return rval; done; return FALSE }
+	push { return default }
+}
+
+help {
+	print "usage: bilar <command> [<args>]"
+	print "\ngeneral commands:"
+	print "   compress - makes a new package from a source code folder"
+	print "   info - display information about an installed package"
+	print "   install - install a bil package"
+	print "\nmeta commands:"
+	print "   help - display this help text"
+	print "   version -  display the version number"
+}
+
+main path, args... {
+	BILAR_PATH := path
+	
+	localImport(path.."/bilar.röd")
+	bil_database := loadBilDatabase()
+	
+	localImport(path.."/install.röd")
+	localImport(path.."/compress.röd")
+	
+	if [ #args = 0 ] do
+		help
+		return
+	done
+	
+	cmd = args[0]
+	args = args[1:]
+	
+	case(cmd) | pull(itIs, somethingElse)
+	if itIs("help") do
+		help
+		return
+	done
+	if itIs("version") do
+		print "Bil Archive v0.1"
+		return
+	done
+	if itIs("info") do
+		pname := ""
+		while [ #args > 0 ] do
+			case(args[0]) | pull(itIs, somethingElse)
+			if itIs("-h", "--help") do
+				print "usage: bilar info <package-name>"
+				return
+			done
+			if somethingElse do
+				pname = args[0]
+				break
+			done
+			shift args
+		done
+		unless [ bil_database[pname]? ] do
+			print "No version of '", pname, "' is installed."
+		else
+			latest_bil := bil_database[pname][0]
+			print "== Latest version =="
+			print "Name: ", latest_bil.name
+			print "Version: ", latest_bil.version
+			manifest := readLines(latest_bil.path.."/manifest.pmf") | parsePamflett()
+			if [ manifest["description"]? ] do
+				print "Description:"
+				print manifest["description"]
+			done
+			if [ manifest["tags"]? ] do
+				tags := manifest["tags"]
+				tags = tags&", " if [ tags is list ]
+				print "Tags: ", tags
+			done
+			print "== Installed versions =="
+			for package in bil_database[pname] do
+				print package.name, ".", package.version
+			done
+		done
+		return
+	done
+	if itIs("install") do
+		file := ""
+		while [ #args > 0 ] do
+			case(args[0]) | pull(itIs, somethingElse)
+			if itIs("-h", "--help") do
+				print "usage: bilar install <file>"
+				return
+			done
+			if somethingElse do
+				file = args[0]
+				break
+			done
+			shift args
+		done
+		if installBil(file) do
+			print "Package is installed."
+		else
+			print "Installation failed."
+		done
+		return
+	done
+	if itIs("compress") do
+		file := ""
+		while [ #args > 0 ] do
+			case(args[0]) | pull(itIs, somethingElse)
+			if itIs("-h", "--help") do
+				print "usage: bilar compress <folder>"
+				return
+			done
+			if somethingElse do
+				file = args[0]
+				break
+			done
+			shift args
+		done
+		if createBilPackage(file) do
+			print "Package successfully created."
+		else
+			print "Package creation failed."
+		done
+		return
+	done
+	if somethingElse do
+		help
+	done
+}

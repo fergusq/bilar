@@ -1,0 +1,22 @@
+post_load: {{
+	localImport(BILAR_PATH.."/require.röd")
+}}
+
+/*
+ * This function executes the given file in a scope that is a direct descendant of the global scope.
+ * The only additional variables in that scope are this function itself, 'subglobalImport', and
+ * 'INIT_FILE', the name of the file to be imported. subglobalImport, although, is disabled and
+ * can't be called.
+ *
+ * Additionally, this function disables functions 'assignGlobal', 'assignGlobalType',
+ * 'createGlobal', 'createGlobalType' and 'import'.
+ */
+subglobalImport(INIT_FILE) {
+	assignGlobal := { |a...|; error "assignGlobal is disabled by Bilar." }
+	createGlobal := { |a...|; error "createGlobal is disabled by Bilar." }
+	assignGlobalType := { |a...|; error "assignGlobalType is disabled by Bilar." }
+	createGlobalType := { |a...|; error "createGlobalType is disabled by Bilar." }
+	import := { |a...|; error "import is disabled by Bilar." }
+	subglobalImport := { |a...|; error "subglobalImport is disabled by Bilar." }
+	localImportNamespace(INIT_FILE)
+}

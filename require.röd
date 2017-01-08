@@ -1,0 +1,60 @@
+pre_load: {
+	localImport(BILAR_PATH.."/bilar.röd")
+	
+	/* LOCAL VARIABLES */
+	bil_database := loadBilDatabase()
+	exported_functions := []
+	exported_types := []
+	imported_libraries := []
+	dependencies := [
+		"assignGlobal",
+		"assignGlobalType",
+		"name",
+		"require",
+		"export",
+		"exportType"]
+}
+
+post_load: {
+	disallow_dependency_overwrite := FALSE
+	
+	/* EXPORTED FUNCTIONS */
+	export(require)
+	export(export)
+	export(exportType)
+	
+	disallow_dependency_overwrite = TRUE
+}
+
+/*
+ * This function exports the given variable, ie. promotes it to the global scope. It keeps track of
+ * exported variables and will deny to export any name that would clash with an already exported
+ * name.
+ */
+function export(&var) {
+	error("Exporting '"..name(var).."' would overwrite an existing variable.") if [ name(var) in exported_functions ]
+	exported_functions += name(var)
+	if disallow_dependency_overwrite? do
+		if [ disallow_dependency_overwrite and name(var) in dependencies ] do
+			error("Trying to export a variable named '"..name(var).."' that would overwrite a function used by Bilar. This would probably break everything.")
+		done
+	done
+	assignGlobal(name(var), var)
+}
+
+function exportType(type : string) {
+	error("Exporting '"..type.."' would overwrite an existing type.") if [ type in exported_types ]
+	exported_types += type
+	assignGlobalType(type, caller_namespace)
+}
+
+function require(libname, min_version="", max_version="") {
+	location := findLibrary(libname, min_version, max_version)
+	if [ location in imported_libraries ] do return done
+	imported_libraries += location
+	wd := pwd()
+	cd(location)
+	error("Bil package '"..location.."' has invalid structure: no init.röd") unless fileExists(location.."/init.röd")
+	subglobalImport(location.."/init.röd")
+	cd(wd)
+}

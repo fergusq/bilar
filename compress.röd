@@ -1,0 +1,62 @@
+compress archive, dir, args=[] {
+	logExec("tar", "--create", "--xz", "--file", archive, dir, *args)
+}
+
+function createBilPackage folder {
+	folder ~= "/$", ""
+	
+	unless [isDirectory(folder),
+		fileExists(folder.."/init.röd"),
+		isFile(folder.."/init.röd"),
+		fileExists(folder.."/manifest.pmf"),
+		isFile(folder.."/manifest.pmf")] do
+		errprint("Bil folder '", folder, "' is not valid (invalid directory structure).\n")
+		return FALSE
+	done
+	
+	manifest := readLines(folder.."/manifest.pmf") | parsePamflett()
+	
+	errors := stream()
+	found_error := validateBilManifest(manifest, errors)
+	errors.finish()
+	
+	if [ found_error ] do
+		errprint("Bil folder '", folder, "' is not valid.\n")
+		errors.pullAll | errprint(it) for it
+		return FALSE
+	done
+	
+	unless [ manifest["name"] =~ "[a-zäöå][a-zäöå_\\-0-9]+" ] do
+		errprint("Bil is not valid: name contains illegal characters.\n")
+		return FALSE
+	done
+	
+	unless [ manifest["version"] =~ VERSION_REGEX ] do
+		errprint("Bil is not valid: use semantic versioning (format MAJOR.MINOR.PATCH).\n")
+		return FALSE
+	done
+	
+	package_dir := manifest["name"].."."..manifest["version"]..".bil"
+	archive_file := package_dir..".tar.xz"
+
+	if fileExists(archive_file) do
+		errprint("Can't create a package: file '"..archive_file.."' already exists.")
+		errprint(" Please move or remove it.\n")
+		return FALSE
+	done
+	
+	bdir := basename(folder)
+	
+	if [ bdir = package_dir ] do
+		compress(archive_file, folder)
+	else
+		compress(archive_file, folder,
+			args=["--transform", "s/"..bdir.."/"..package_dir.."/"])
+		unless fileExists(archive_file) do
+			errprint("note: check that your tar command supports --transform.")
+			errprint(" If not, rename the folder to '"..package_dir.."'.\n")
+		done
+	done
+	
+	return fileExists(archive_file)
+}

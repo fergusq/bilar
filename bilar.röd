@@ -1,0 +1,231 @@
+{
+	localImport(BILAR_PATH.."/pamflett.röd")
+	localImport(BILAR_PATH.."/fileutil.röd")
+	VERSION_REGEX := "(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(\\-.*)?"
+}
+
+function findLibrary(libname, min_version, max_version) {
+	error("Bil '"..libname.."' not found.") unless [ bil_database[libname]? ]
+	for bil in bil_database[libname] do
+		if compatible(bil.version, min_version, max_version) do
+			return bil.path
+		done
+	done
+	error("Bil '"..libname.."' is installed, but no compatible version was found.")
+}
+
+function isCompatibleInstalled(libname, min_version, max_version) {
+	return FALSE unless [ bil_database[libname]? ]
+	for bil in bil_database[libname] do
+		if compatible(bil.version, min_version, max_version) do
+			return TRUE
+		done
+	done
+	return FALSE
+}
+
+function isVersionInstalled(libname, version) {
+	return FALSE unless [ bil_database[libname]? ]
+	for bil in bil_database[libname] do
+		if [ bil.version = version ] do
+			return TRUE
+		done
+	done
+	return FALSE
+}
+
+function parseVersion(version) {
+	version_arr := match(VERSION_REGEX, version)
+	error("Invalid version: '"..version.."'. Use semantic versioning (format MAJOR.MINOR.PATCH).") if [ #version_arr = 0 ]
+	return version_arr[1:-1]
+}
+
+function compatible(version, min_version, max_version) {
+	return (min_version = "" or compareVersions(version, min_version) >= 0) and
+		(max_version = "" or compareVersions(version, max_version) <= 0)
+}
+
+function compareVersions(version, min_version) {
+	version = parseVersion(version)
+	min_version = parseVersion(min_version)
+	
+	interleave(version, min_version) | for v, m do
+		vi := parseInteger(v)
+		mi := parseInteger(m)
+		if [ vi < mi ] do
+			push(-1)
+			break
+		done
+		if [ vi > mi ] do
+			push(1)
+			break
+		done
+	done | if [ tryPull(x) ] do
+		push(x)
+	else
+		push(0)
+	done
+}
+
+record Bil(name, version, path) {
+	name : string = name
+	version : string = version
+	path : string = path
+}
+
+function loadBilDatabase() {
+	home := figureOutWhereIsBilarHome()
+	if fileExists(home.."/db.pmf") do
+		if isDirectory(home.."/db.pmf") do
+			error("'"..home.."/db.pmf' is corrupt."..
+				"Please move or remove, it will be automatically regenerated.")
+		done
+		try do
+			db := new map<< list >>
+			dbmap := readLines(home.."/db.pmf") | parsePamflett()
+			for key in keys(dbmap) do
+				db[key] = [push(new Bil(b["name"], b["version"], b["path"])) for b in dbmap[key]]
+			done
+			return db
+		catch e
+			errprint e.message, "\n"
+			error("'"..home.."/db.pmf' is corrupt. "..
+				"Please move or remove, it will be automatically regenerated.")
+		done
+	else
+		db := loadBilDatabaseFromDirectory()
+		saveBilDatabase(db)
+		return db
+	done
+}
+
+function saveBilDatabase(db : map) {
+	home := figureOutWhereIsBilarHome()
+	for key in keys(db) do
+		print "# ", key, "[]"
+		for bil in db[key] do
+			print "## bil package"
+			print "### name = ", bil.name
+			print "### version = ", bil.version
+			print "### path = ", bil.path
+		done
+	done | writeStrings(home.."/db.pmf")
+}
+
+function loadBilDatabaseFromDirectory() {
+	db := new map<< list >>
+	
+	folder := figureOutWhereBilarAre()
+	packages := [ls(folder)]
+	bil_names := []
+	
+	for path in packages do
+		fname := basename(path)
+		fname_arr := match("([a-zäöå][a-zäöå_\\-0-9]+)\\.("..VERSION_REGEX..")\\.bil", fname)
+		if [ #fname_arr = 0 ] do
+			error("Folder '"..folder.."' has invalid directory structure: ".. fname .." is not a valid bil package.")
+		done
+		fname_arr() | pull(fname, pname, version)
+		unless [ db[pname]? ] do
+			bil_names += pname
+			db[pname] = new list<<Bil>>
+		done
+		db[pname] += new Bil(pname, version, path)
+	done
+	
+	for bil_name in bil_names do
+		db[bil_name] = [sort(db[bil_name], cmp={ |a, b|
+			return -compareVersions(a.version, b.version)
+		})]
+	done
+	
+	return db
+}
+
+function figureOutWhereIsBilarHome() {
+	if [ ENV["BIL_HOME"]? ] do
+		dirpath(ENV["BIL_HOME"])
+	else
+		push dirpath(ENV["HOME"]).."/.bilar"
+	done | pull(path)
+	
+	expectDir(path)
+	
+	return path
+}
+
+function figureOutWhereBilarAre() {
+	path := figureOutWhereIsBilarHome()
+	expectDir(path.."/installed")
+	return path.."/installed"
+}
+
+function figureOutWhereBilExecutablesAre() {
+	path := figureOutWhereIsBilarHome()
+	expectDir(path.."/bin")
+	return path.."/bin"
+}
+
+function validateBilManifest manifest, errors {
+	found_error := FALSE
+	
+	/* check that manifest is valid */
+	
+	unless [ manifest["name"]? and manifest["name"] is string ] do
+		found_error = TRUE
+		errors.push("Invalid manifest: property 'name' is not valid.\n")
+	done
+	
+	unless [ manifest["version"]? and manifest["version"] is string ] do
+		found_error = TRUE
+		errors.push("Invalid manifest: property 'version' is not valid.\n")
+	done
+	
+	unless [ not manifest["dependencies"]? or manifest["dependencies"] is list ] do
+		found_error = TRUE
+		errors.push("Invalid manifest: property 'dependencies' is not valid.\n")
+	done
+	
+	unless [ not manifest["executables"]? or manifest["executables"] is list ] do
+		found_error = TRUE
+		errors.push("Invalid manifest: property 'executables' is not valid.\n")
+	done
+	
+	/* check that dependencies are valid */
+	
+	for dependency in manifest["dependencies"] do
+		unless [ dependency is map or dependency is string ] do
+			found_error = TRUE
+			errors.push("Invalid manifest: property 'dependencies'")
+			errors.push(" contains illegal value "..dependency.."\n")
+		done
+		continue if [ dependency is string ]
+		unless [ dependency["name"]? and dependency["name"] is string ] do
+			found_error = TRUE
+			errors.push("Invalid manifest: property 'name' of one dependency")
+			errors.push(" is not valid.\n")
+		done
+		unless [ not dependency["min_version"]? or dependency["min_version"] is string ] do
+			found_error = TRUE
+			errors.push("Invalid manifest: property 'min_version' of one dependency")
+			errors.push(" is not valid.\n")
+		done
+		unless [ not dependency["max_version"]? or dependency["max_version"] is string ] do
+			found_error = TRUE
+			errors.push("Invalid manifest: property 'max_version' of one dependency")
+			errors.push(" is not valid.\n")
+		done
+	done if [ manifest["dependencies"]? ]
+	
+	/* check that executables are valid */
+	
+	for executable in manifest["executables"] do
+		unless [ executable is string ] do
+			found_error = TRUE
+			errors.push("Invalid manifest: property 'executables'")
+			errors.push(" contains illegal value "..executable.."\n")
+		done
+	done if [ manifest["executables"]? ]
+	
+	return found_error
+}
