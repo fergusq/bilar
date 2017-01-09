@@ -100,12 +100,13 @@ function installBil(filename) {
 			if [ bil_database[pname]? and
 				compareVersions(version, bil_database[pname][0].version) <= 0 ] do
 				errprint("Executable '"..executable.."' did not overwrite the current file.\n")
+				continue
 			else
 				errprint("Executable '"..executable.."' overwrited a previous file.\n")
-				cp exefile, exedir.."/"..base_exe
-				chmod "+x", exedir.."/"..base_exe
 			done
 		done
+		cp exefile, exedir.."/"..base_exe
+		chmod "+x", exedir.."/"..base_exe
 	done if [ manifest["executables"]? ]
 	
 	/* check that dependencies are fulfilled */

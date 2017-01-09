@@ -89,6 +89,7 @@ function loadBilDatabase() {
 			return db
 		catch e
 			errprint e.message, "\n"
+			errprint c.message, "\n" for c in e.causes
 			error("'"..home.."/db.pmf' is corrupt. "..
 				"Please move or remove, it will be automatically regenerated.")
 		done
@@ -143,8 +144,8 @@ function loadBilDatabaseFromDirectory() {
 }
 
 function figureOutWhereIsBilarHome() {
-	if [ ENV["BIL_HOME"]? ] do
-		dirpath(ENV["BIL_HOME"])
+	if [ ENV["BILAR_HOME"]? ] do
+		dirpath(ENV["BILAR_HOME"])
 	else
 		push dirpath(ENV["HOME"]).."/.bilar"
 	done | pull(path)
