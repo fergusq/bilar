@@ -4,15 +4,18 @@ case x {
 	push { return default }
 }
 
-help {
-	print "usage: bilar <command> [<args>]"
-	print "\ngeneral commands:"
-	print "   compress - makes a new package from a source code folder"
-	print "   info - display information about an installed package"
-	print "   install - install a bil package"
-	print "\nmeta commands:"
-	print "   help - display this help text"
-	print "   version -  display the version number"
+help f {
+	f "usage: bilar <command> [<args>]"
+	f "\ngeneral commands:"
+	f "   compress - make a new package from a source code folder"
+	f "   get - download and install a bil package from remote repository"
+	f "   info - display information about an installed package"
+	f "   install - install a bil package"
+	f "\nmeta commands:"
+	f "   help - display this help text"
+	f "   version -  display the version number"
+	f ""
+	f "Type `bilar <command> --help` to get help about a command."
 }
 
 main path, args... {
@@ -25,7 +28,7 @@ main path, args... {
 	localImport(path.."/compress.röd")
 	
 	if [ #args = 0 ] do
-		help
+		help { |x...|; errprint *x, "\n" }
 		return
 	done
 	
@@ -34,7 +37,7 @@ main path, args... {
 	
 	case(cmd) | pull(itIs, somethingElse)
 	if itIs("help") do
-		help
+		help print
 		return
 	done
 	if itIs("version") do
@@ -100,6 +103,32 @@ main path, args... {
 		done
 		return
 	done
+	if itIs("get") do
+		file := ""
+		version := ""
+		while [ #args > 0 ] do
+			case(args[0]) | pull(itIs, somethingElse)
+			if itIs("-h", "--help") do
+				print "usage: bilar get [-v|--version <version>] <package-name>"
+				return
+			done
+			if itIs("-v", "--version") do
+				shift args
+				version = args[0]
+			done
+			if somethingElse do
+				file = args[0]
+				break
+			done
+			shift args
+		done
+		if installBilFromInternet(file) do
+			print "Package is installed."
+		else
+			print "Installation failed."
+		done
+		return
+	done
 	if itIs("compress") do
 		file := ""
 		while [ #args > 0 ] do
@@ -122,6 +151,6 @@ main path, args... {
 		return
 	done
 	if somethingElse do
-		help
+		help { |x...|; errprint *x, "\n" }
 	done
 }

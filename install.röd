@@ -55,7 +55,14 @@ function installBil(filename) {
 	
 	/* parse manifest */
 	
-	manifest := readLines(install_dir .."/".. dname .."/manifest.pmf") | parsePamflett()
+	manifest := 0
+	try do
+		manifest = readLines(install_dir .."/".. dname .."/manifest.pmf") | parsePamflett()
+	catch e
+		errprint("Bil file '", filename, "' is not valid ")
+		errprint("(manifest is corrupt).\n")
+		return FALSE
+	done
 	
 	errors := stream()
 	found_error := validateBilManifest(manifest, errors)
@@ -145,6 +152,68 @@ function installBil(filename) {
 	})]
 	
 	saveBilDatabase(bil_database)
+	
+	return TRUE
+}
+
+function installBilFromInternet(bil_name, version="") {
+	index_file := figureOutWhereIsBilarHome() .. "/index.pmf"
+	unless fileExists(index_file) do
+		errprint("Index file does not exist. Please run `bilar update`.\n")
+		return FALSE
+	done
+	
+	index := 0
+	try do
+		index = readLines(index_file) | parsePamflett()
+	catch e
+		errprint e.message, "\n"
+		errprint("Index file is corrupt. Please run `bilar update`.\n")
+		return FALSE
+	done
+	
+	unless [ index[bil_name]? ] do
+		errprint("Bil '", bil_name, "' not found.")
+		return FALSE
+	done
+	
+	files := 0
+	for bil in index[bil_name] do
+		unless [ bil["version"]? and bil["files"]? ] do
+			errprint("Index file is corrupt. Please run `bilar update`.\n")
+			return FALSE
+		done
+		if [ version = "" or bil["version"] = version ] do
+			files = bil["files"]
+			break
+		done
+	done
+	if [ files = 0 ] do
+		errprint("Bil '", bil_name, ".", version, "' not found.")
+		return FALSE
+	done
+	
+	tmp_dir := figureOutWhereIsBilarHome() .. "/tmp"
+	
+	expectDir(tmp_dir)
+	
+	for file in files do
+		errprint "Downloading '", file, "'..."
+		local_file := tmp_dir.."/"..basename(file)
+		try do
+			saveResource(file, local_file)
+		catch e
+			errprint " [ERROR]\n"
+			errprint e.message, "\n"
+			errprint "Failed to install a dependency. Aborting installation.\n"
+			return FALSE
+		done
+		errprint " [DONE]\n"
+		unless installBil(local_file) do
+			errprint "Failed to install a dependency. Aborting installation.\n"
+			return FALSE
+		done
+	done
 	
 	return TRUE
 }

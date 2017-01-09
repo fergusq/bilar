@@ -75,6 +75,7 @@ record Bil(name, version, path) {
 
 function loadBilDatabase() {
 	home := figureOutWhereIsBilarHome()
+	disable_regen := FALSE
 	if fileExists(home.."/db.pmf") do
 		if isDirectory(home.."/db.pmf") do
 			error("'"..home.."/db.pmf' is corrupt."..
@@ -90,14 +91,14 @@ function loadBilDatabase() {
 		catch e
 			errprint e.message, "\n"
 			errprint c.message, "\n" for c in e.causes
-			error("'"..home.."/db.pmf' is corrupt. "..
+			errprint("'"..home.."/db.pmf' is corrupt. "..
 				"Please move or remove, it will be automatically regenerated.")
+			disable_regen = TRUE
 		done
-	else
-		db := loadBilDatabaseFromDirectory()
-		saveBilDatabase(db)
-		return db
 	done
+	db := loadBilDatabaseFromDirectory()
+	saveBilDatabase(db) unless [ disable_regen ]
+	return db
 }
 
 function saveBilDatabase(db : map) {
