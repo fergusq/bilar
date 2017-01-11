@@ -75,6 +75,20 @@ main path, args... {
 				tags = tags&", " if [ tags is list ]
 				print "Tags: ", tags
 			done
+			if [ manifest["dependencies"]? ] do
+				print "Dependencies: ", [for d in manifest["dependencies"] do
+					if [ d is string ] do
+						push d.." (any version)"
+					done
+					if [ d is map ] do
+						push d["name"].." ("..[{
+							push "="..d["version"] if [ d["version"]? ]
+							push "<="..d["max_version"] if [ d["max_version"]? ]
+							push ">="..d["min_version"] if [ d["min_version"]? ]
+						}()]&", "..")"
+					done
+				done]&", "
+			done
 			print "== Installed versions =="
 			for package in bil_database[pname] do
 				print package.name, ".", package.version
