@@ -91,3 +91,55 @@ function parsePamflett(char="#") {
 	done
 	return obj[0]
 }
+
+record PamflettValidator(node) {
+	node : list = [node]
+	
+	function isMap {
+		self.assert self.node[0] is map
+	}
+	
+	function isList {
+		self.assert self.node[0] is list
+	}
+	
+	function isString {
+		self.assert self.node[0] is string
+	}
+	
+	function isStringOrMap validator {
+		self.assert self.node[0] is string or self.node[0] is map
+		validator() if [ self.node[0] is map ]
+	}
+	
+	function contains key, validator {
+		if [ self.node[0] is map ] do
+			self.assert self.node[0][key]?
+			validatePamflett self.node[0][key], validator
+		done
+	}
+	
+	function mayContain key, validator {
+		if [ self.node[0] is map ] do
+			self.assert self.node[0][key]?
+			validatePamflett self.node[0][key], validator
+		done
+	}
+	
+	function forEach validator {
+		if [ self.node[0] is list ] do
+			validatePamflett elem, validator for elem in self.node[0]
+		done
+		if [ self.node[0] is map ] do
+			validatePamflett self.node[0][key], validator for key in keys(self.node[0])
+		done
+	}
+	
+	function assert condition {
+		push condition
+	}
+}
+
+function validatePamflett(tree, validator) {
+	validator(new PamflettValidator(tree))
+}
