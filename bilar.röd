@@ -83,7 +83,7 @@ function loadBilDatabase() {
 		done
 		try do
 			db := new map<< list >>
-			dbmap := readLines(home.."/db.pmf") | parsePamflett()
+			dbmap := (readLines(home.."/db.pmf") | parsePamflett())
 			for key in keys(dbmap) do
 				db[key] = [push(new Bil(b["name"], b["version"], b["path"])) for b in dbmap[key]]
 			done

@@ -156,7 +156,13 @@ function installBil(filename) {
 	return TRUE
 }
 
-function installBilFromInternet(bil_name, version="") {
+function installBilFromInternet(bil_name, version="", min_version="", max_version="") {
+	if [ (version = "" and isCompatibleInstalled(bil_name, min_version, max_version)) or
+		isVersionInstalled(bil_name, version) ] do
+		errprint("The requested version of '", bil_name, "' is already installed.\n")
+		return TRUE
+	done
+	
 	index_file := figureOutWhereIsBilarHome() .. "/index.pmf"
 	unless fileExists(index_file) do
 		errprint("Index file does not exist. Please run `bilar update`.\n")
@@ -172,47 +178,83 @@ function installBilFromInternet(bil_name, version="") {
 		return FALSE
 	done
 	
+	unless validatePamflett index, { |it|
+		it.isMap
+		it.forEach { |elem|
+			elem.contains "file", { |it|; it.isString }
+			elem.contains "version", { |it|; it.isString }
+			elem.mayContain "dependencies", { |it|
+				it.forEach { |elem|
+					elem.isStringOrMap {
+						elem.contains "name", { |it|; it.isString }
+						elem.mayContain "version", { |it|; it.isString }
+						elem.mayContain "min_version", { |it|; it.isString }
+						elem.mayContain "max_version", { |it|; it.isString }
+					}
+				}
+			}
+		}
+	} do
+		errprint("Index file is corrupt. Please run `bilar update`.\n")
+		return FALSE
+	done
+	
 	unless [ index[bil_name]? ] do
 		errprint("Bil '", bil_name, "' not found.")
 		return FALSE
 	done
 	
-	files := 0
+	file := 0
+	dependencies := []
 	for bil in index[bil_name] do
-		unless [ bil["version"]? and bil["files"]? ] do
-			errprint("Index file is corrupt. Please run `bilar update`.\n")
-			return FALSE
-		done
-		if [ version = "" or bil["version"] = version ] do
-			files = bil["files"]
+		if [ version = "" or bil["version"] = version or
+			compatible(bil["version"], min_version, max_version) ] do
+			file = bil["file"]
+			dependencies = bil["dependencies"] if [ bil["dependencies"]? ]
 			break
 		done
 	done
-	if [ files = 0 ] do
+	if [ file is integer ] do /* purkkaa */
 		errprint("Bil '", bil_name, ".", version, "' not found.")
 		return FALSE
+	done
+	
+	for dependency in dependencies do
+		if [ dependency is map ] do
+			depver := push(dependency["version"]) if [ dependency["version"]? ] else push("")
+			depmaxver := push(dependency["max_version"]) if [ dependency["max_version"]? ] else push("")
+			depminver := push(dependency["min_version"]) if [ dependency["min_version"]? ] else push("")
+			unless installBilFromInternet(dependency["name"],
+				version=depver, min_version=depminver, max_version=depmaxver) do
+				errprint "Failed to install a dependency. Aborting installation.\n"
+				return FALSE
+			done
+		done
+		if [ dependency is string ] do
+			unless installBilFromInternet(dependency) do
+				errprint "Failed to install a dependency. Aborting installation.\n"
+				return FALSE
+			done
+		done
 	done
 	
 	tmp_dir := figureOutWhereIsBilarHome() .. "/tmp"
 	
 	expectDir(tmp_dir)
 	
-	for file in files do
-		errprint "Downloading '", file, "'..."
-		local_file := tmp_dir.."/"..basename(file)
-		try do
-			saveResource(file, local_file)
-		catch e
-			errprint " [ERROR]\n"
-			errprint e.message, "\n"
-			errprint "Failed to install a dependency. Aborting installation.\n"
-			return FALSE
-		done
-		errprint " [DONE]\n"
-		unless installBil(local_file) do
-			errprint "Failed to install a dependency. Aborting installation.\n"
-			return FALSE
-		done
+	errprint "Downloading '", file, "'..."
+	local_file := tmp_dir.."/"..basename(file)
+	try do
+		saveResource(file, local_file)
+	catch e
+		errprint " [ERROR]\n"
+		errprint e.message, "\n"
+		errprint "Failed to the package.\n"
+		return FALSE
+	done
+	errprint " [DONE]\n"
+	unless installBil(local_file) do
+		errprint "Failed to the package.\n"
 	done
 	
 	return TRUE
