@@ -11,6 +11,7 @@ help f {
 	f "   get - download and install a bil package from remote repository"
 	f "   info - display information about an installed package"
 	f "   install - install a bil package"
+	f "   update - update remote package index"
 	f "\nmeta commands:"
 	f "   help - display this help text"
 	f "   version -  display the version number"
@@ -140,6 +141,14 @@ main path, args... {
 			print "Package is installed."
 		else
 			print "Installation failed."
+		done
+		return
+	done
+	if itIs("update") do
+		if updateIndex() do
+			print "Done updating the index."
+		else
+			print "Failed to update the index."
 		done
 		return
 	done

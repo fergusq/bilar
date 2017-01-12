@@ -92,54 +92,56 @@ function parsePamflett(char="#") {
 	return obj[0]
 }
 
-record PamflettValidator(node) {
-	node : list = [node]
-	
+record PamflettValidator(node, path, print_errors) {
 	function isMap {
-		self.assert self.node[0] is map
+		self.assert "is map", node is map
 	}
 	
 	function isList {
-		self.assert self.node[0] is list
+		self.assert "is list", node is list
 	}
 	
 	function isString {
-		self.assert self.node[0] is string
+		self.assert "is string", node is string
 	}
 	
 	function isStringOrMap validator {
-		self.assert self.node[0] is string or self.node[0] is map
-		validator() if [ self.node[0] is map ]
+		self.assert "is string or map", node is string or node is map
+		validator() if [ node is map ]
 	}
 	
 	function contains key, validator {
-		if [ self.node[0] is map ] do
-			self.assert self.node[0][key]?
-			validatePamflett self.node[0][key], validator
+		if [ node is map ] do
+			self.assert "contains property "..key, node[key]?
+			validatePamflett node[key], validator, path=path.."/"..key
 		done
 	}
 	
 	function mayContain key, validator {
-		if [ self.node[0] is map ] do
-			self.assert self.node[0][key]?
-			validatePamflett self.node[0][key], validator
+		if [ node is map ] do
+			if [ node[key]? ] do
+				validatePamflett node[key], validator, path=path.."/"..key
+			done
 		done
 	}
 	
 	function forEach validator {
-		if [ self.node[0] is list ] do
-			validatePamflett elem, validator for elem in self.node[0]
+		if [ node is list ] do
+			validatePamflett elem, validator, path=path.."/[]" for elem in node
 		done
-		if [ self.node[0] is map ] do
-			validatePamflett self.node[0][key], validator for key in keys(self.node[0])
+		if [ node is map ] do
+			validatePamflett node[key], validator, path=path.."/"..key for key in keys(node)
 		done
 	}
 	
-	function assert condition {
+	function assert msg, condition {
 		push condition
+		if [ not condition and print_errors ] do
+			errprint "Assert failed: ", path, " ", msg, "\n"
+		done
 	}
 }
 
-function validatePamflett(tree, validator) {
-	validator(new PamflettValidator(tree))
+function validatePamflett(tree, validator, path="root", print_errors=TRUE) {
+	validator(new PamflettValidator(tree, path, print_errors))
 }

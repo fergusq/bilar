@@ -156,6 +156,31 @@ function installBil(filename) {
 	return TRUE
 }
 
+function validateIndex(index) {
+	validatePamflett index, { |it|
+		it.isMap
+		it.forEach { |elem|
+			elem.isList
+			elem.forEach { |elem|
+				elem.contains "name", { |it|; it.isString }
+				elem.contains "file", { |it|; it.isString }
+				elem.contains "version", { |it|; it.isString }
+				elem.mayContain "dependencies", { |it|
+					it.isList
+					it.forEach { |elem|
+						elem.isStringOrMap {
+							elem.contains "name", { |it|; it.isString }
+							elem.mayContain "version", { |it|; it.isString }
+							elem.mayContain "min_version", { |it|; it.isString }
+							elem.mayContain "max_version", { |it|; it.isString }
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
 function installBilFromInternet(bil_name, version="", min_version="", max_version="") {
 	if [ (version = "" and isCompatibleInstalled(bil_name, min_version, max_version)) or
 		isVersionInstalled(bil_name, version) ] do
@@ -178,23 +203,7 @@ function installBilFromInternet(bil_name, version="", min_version="", max_versio
 		return FALSE
 	done
 	
-	unless validatePamflett index, { |it|
-		it.isMap
-		it.forEach { |elem|
-			elem.contains "file", { |it|; it.isString }
-			elem.contains "version", { |it|; it.isString }
-			elem.mayContain "dependencies", { |it|
-				it.forEach { |elem|
-					elem.isStringOrMap {
-						elem.contains "name", { |it|; it.isString }
-						elem.mayContain "version", { |it|; it.isString }
-						elem.mayContain "min_version", { |it|; it.isString }
-						elem.mayContain "max_version", { |it|; it.isString }
-					}
-				}
-			}
-		}
-	} do
+	unless validateIndex index do
 		errprint("Index file is corrupt. Please run `bilar update`.\n")
 		return FALSE
 	done
@@ -258,4 +267,84 @@ function installBilFromInternet(bil_name, version="", min_version="", max_versio
 	done
 	
 	return TRUE
+}
+
+function updateIndex {
+	sources_file := figureOutWhereIsBilarHome() .. "/sources.pmf"
+	unless fileExists(sources_file) do
+		errprint("No sources file.")
+		return TRUE
+	done
+	
+	sources := 0
+	try do
+		sources = readLines(sources_file) | parsePamflett()
+	catch e
+		errprint e.message, "\n"
+		errprint("Sources file is corrupt.\n")
+		return FALSE
+	done
+	
+	unless validatePamflett sources, { |it|
+		it.isMap
+		it.contains "sources", { |it|
+			it.forEach { |elem|; elem.isString }
+		}
+	} do
+		errprint("Sources file is corrupt.\n")
+		return FALSE
+	done
+	
+	index := new map
+	
+	for source in sources["sources"] do
+		source_index := 0
+		errprint "Downloading '", source, "'..."
+		try do
+			source_index = loadResourceLines(source) | parsePamflett()
+		catch e
+			errprint " [ERROR]\n"
+			errprint e.message, "\n"
+			errprint("Source file is corrupt: ", source, "\n")
+			return FALSE
+		done
+		errprint " [DONE]\n"
+		unless validateIndex source_index do
+			errprint("Source file is corrupt: ", source, "\n")
+			return FALSE
+		done
+		for key in keys(source_index) do
+			index[key] = [] unless [ index[key]? ]
+			index[key] .= source_index[key]
+		done
+	done
+	
+	index_file := figureOutWhereIsBilarHome() .. "/index.pmf"
+	
+	for key in keys(index) do
+		pkg_list = [sort(index[key], cmp={ |a, b|
+			return -compareVersions(a["version"], b["version"])
+		})]
+		print "# ", key, "[]"
+		for pkg in pkg_list do
+			print "## bil package"
+			print "### name = ", pkg["name"]
+			print "### version = ", pkg["version"]
+			print "### file = ", pkg["file"]
+			if [ pkg["dependencies"]? ] do
+				print "### dependencies[]"
+				for dep in pkg["dependencies"] do
+					print "#### dependency"
+					if [ dep is string ] do
+						print "##### name = ", dep
+					else /* dep is map */
+						print "##### name = ", dep["name"]
+						print "##### version = ", dep["version"] if [ dep["version"]? ]
+						print "##### min_version = ", dep["min_version"] if [ dep["min_version"]? ]
+						print "##### max_version = ", dep["max_version"] if [ dep["max_version"]? ]
+					done
+				done
+			done
+		done
+	done | writeStrings(index_file)
 }
