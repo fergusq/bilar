@@ -113,24 +113,24 @@ record PamflettValidator(node, path, print_errors) {
 	function contains key, validator {
 		if [ node is map ] do
 			self.assert "contains property "..key, node[key]?
-			validatePamflett node[key], validator, path=path.."/"..key
+			validatePamflett node[key], validator, path=path.."/"..key, print_errors=print_errors
 		done
 	}
 	
 	function mayContain key, validator {
 		if [ node is map ] do
 			if [ node[key]? ] do
-				validatePamflett node[key], validator, path=path.."/"..key
+				validatePamflett node[key], validator, path=path.."/"..key, print_errors=print_errors
 			done
 		done
 	}
 	
 	function forEach validator {
 		if [ node is list ] do
-			validatePamflett elem, validator, path=path.."/[]" for elem in node
+			validatePamflett elem, validator, path=path.."/[]", print_errors=print_errors for elem in node
 		done
 		if [ node is map ] do
-			validatePamflett node[key], validator, path=path.."/"..key for key in keys(node)
+			validatePamflett node[key], validator, path=path.."/"..key, print_errors=print_errors for key in keys(node)
 		done
 	}
 	

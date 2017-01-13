@@ -95,6 +95,13 @@ main path, args... {
 				print package.name, ".", package.version
 			done
 		done
+		available_versions := [searchBilFromIndex(pname)]
+		if [ #available_versions > 0 ] do
+			print "== Available versions =="
+			for package in available_versions do
+				print package
+			done
+		done
 		return
 	done
 	if itIs("install") do

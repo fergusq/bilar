@@ -269,6 +269,37 @@ function installBilFromInternet(bil_name, version="", min_version="", max_versio
 	return TRUE
 }
 
+function searchBilFromIndex bil_name {
+	index_file := figureOutWhereIsBilarHome() .. "/index.pmf"
+	unless fileExists(index_file) do
+		errprint("Index file does not exist. Please run `bilar update`.\n")
+		return
+	done
+	
+	index := 0
+	try do
+		index = readLines(index_file) | parsePamflett()
+	catch e
+		errprint e.message, "\n"
+		errprint("Index file is corrupt. Please run `bilar update`.\n")
+		return
+	done
+	
+	unless validateIndex index do
+		errprint("Index file is corrupt. Please run `bilar update`.\n")
+		return
+	done
+	
+	unless [ index[bil_name]? ] do
+		errprint("Bil '", bil_name, "' not found.\n")
+		return
+	done
+	
+	for bil in index[bil_name] do
+		push(bil["name"].."."..bil["version"])
+	done
+}
+
 function updateIndex {
 	sources_file := figureOutWhereIsBilarHome() .. "/sources.pmf"
 	unless fileExists(sources_file) do
