@@ -209,7 +209,7 @@ function installBilFromInternet(bil_name, version="", min_version="", max_versio
 	done
 	
 	unless [ index[bil_name]? ] do
-		errprint("Bil '", bil_name, "' not found.")
+		errprint("Bil '", bil_name, "' not found.\n")
 		return FALSE
 	done
 	
@@ -224,7 +224,7 @@ function installBilFromInternet(bil_name, version="", min_version="", max_versio
 		done
 	done
 	if [ file is integer ] do /* purkkaa */
-		errprint("Bil '", bil_name, ".", version, "' not found.")
+		errprint("Bil '", bil_name, ".", version, "' not found.\n")
 		return FALSE
 	done
 	
@@ -272,7 +272,7 @@ function installBilFromInternet(bil_name, version="", min_version="", max_versio
 function updateIndex {
 	sources_file := figureOutWhereIsBilarHome() .. "/sources.pmf"
 	unless fileExists(sources_file) do
-		errprint("No sources file.")
+		errprint("No sources file.\n")
 		return TRUE
 	done
 	
