@@ -48,20 +48,27 @@ module, typically a library. Bilar can install these packages and import them to
 Bils are distributed as .tar.xz archives. Each bil package must be named
 `package-name.x.y.z.bil.tar.xz`, where `x.y.z` is the version number of the package.
 
-To install a bil, use the `bilar` command.
+To install a bil, use the `bilar install` command.
 
 	bilar install case.1.0.0.bil.tar.xz
+
+If the sources file is present, Bilar can automatically download and install packages. First,
+update the index with `bilar update`, and then install the demanded Bil package by invoking
+`bilar get`.
+
+	bilar update
+	bilar get case
 
 The `case` library contains the single function `case` that can be used to simulate
 `case`/`select`/`switch` statements in Röda. That function can be imported using the `require`
 function.
 
 	{
-		require "case"
+		case := require("case")
 	}
 	
 	function f(str) {
-		case(str) | pull(matches, somethingElse)
+		case.case(str) | pull(matches, somethingElse)
 		if matches("[ab]+") do
 			/* ... */
 		done

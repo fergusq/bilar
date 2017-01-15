@@ -5,23 +5,23 @@ pre_load: {
 	bil_database := loadBilDatabase()
 	exported_functions := []
 	exported_types := []
-	imported_libraries := []
+	imported_libraries := new map
 	dependencies := [
 		"assignGlobal",
 		"assignGlobalType",
 		"name",
 		"require",
-		"export",
-		"exportType"]
+		"exportGlobal",
+		"exportGlobalType"]
 }
 
 post_load: {
 	disallow_dependency_overwrite := FALSE
 	
 	/* EXPORTED FUNCTIONS */
-	export(require)
-	export(export)
-	export(exportType)
+	exportGlobal(require)
+	exportGlobal(exportGlobal)
+	exportGlobal(exportGlobalType)
 	
 	disallow_dependency_overwrite = TRUE
 }
@@ -31,7 +31,7 @@ post_load: {
  * exported variables and will deny to export any name that would clash with an already exported
  * name.
  */
-function export(&var) {
+function exportGlobal(&var) {
 	error("Exporting '"..name(var).."' would overwrite an existing variable.") if [ name(var) in exported_functions ]
 	exported_functions += name(var)
 	if disallow_dependency_overwrite? do
@@ -42,7 +42,7 @@ function export(&var) {
 	assignGlobal(name(var), var)
 }
 
-function exportType(type : string) {
+function exportGlobalType(type : string) {
 	error("Exporting '"..type.."' would overwrite an existing type.") if [ type in exported_types ]
 	exported_types += type
 	assignGlobalType(type, caller_namespace)
@@ -50,11 +50,12 @@ function exportType(type : string) {
 
 function require(libname, min_version="", max_version="") {
 	location := findLibrary(libname, min_version, max_version)
-	if [ location in imported_libraries ] do return done
-	imported_libraries += location
+	if [ imported_libraries[location]? ] do return imported_libraries[location] done
 	wd := pwd()
 	cd(location)
 	error("Bil package '"..location.."' has invalid structure: no init.röd") unless fileExists(location.."/init.röd")
-	subglobalImport(location.."/init.röd")
+	library := subglobalImport(location.."/init.röd")
 	cd(wd)
+	imported_libraries[location] = library
+	return library
 }

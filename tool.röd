@@ -42,7 +42,7 @@ main path, args... {
 		return
 	done
 	if itIs("version") do
-		print "Bil Archive v0.1"
+		print "Bil Archive v0.2"
 		return
 	done
 	if itIs("info") do
@@ -152,6 +152,14 @@ main path, args... {
 		return
 	done
 	if itIs("update") do
+		while [ #args > 0 ] do
+			case(args[0]) | pull(itIs, somethingElse)
+			if itIs("-h", "--help") do
+				print "usage: bilar update"
+				return
+			done
+			shift args
+		done
 		if updateIndex() do
 			print "Done updating the index."
 		else
