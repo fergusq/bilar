@@ -1,7 +1,7 @@
 {
 	localImport(BILAR_PATH.."/pamflett.röd")
 	localImport(BILAR_PATH.."/fileutil.röd")
-	VERSION_REGEX := "(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(\\-.*)?"
+	VERSION_REGEX := "(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(\\-[0-9A-Za-z\\-]+(\\.[0-9A-Za-z\\-]+)*)?"
 }
 
 function findLibrary(libname, min_version, max_version) {
@@ -37,7 +37,8 @@ function isVersionInstalled(libname, version) {
 function parseVersion(version) {
 	version_arr := match(VERSION_REGEX, version)
 	error("Invalid version: '"..version.."'. Use semantic versioning (format MAJOR.MINOR.PATCH).") if [ #version_arr = 0 ]
-	return version_arr[1:-1]
+	pre_release := [split(version_arr[-2], sep="\\.")]
+	return version_arr[1:-2]..pre_release
 }
 
 function compatible(version, min_version, max_version) {
@@ -49,9 +50,13 @@ function compareVersions(version, min_version) {
 	version = parseVersion(version)
 	min_version = parseVersion(min_version)
 	
+	version += "" while [ #version < #min_version ]
+	min_version += "" while [ #min_version < #version ]
+	
 	interleave(version, min_version) | for v, m do
-		vi := parseInteger(v)
-		mi := parseInteger(m)
+		numeric := [ v =~ "[0-9]+" and m =~ "[0-9]+" ]
+		vi := parseInteger(v) if numeric else push(v)
+		mi := parseInteger(m) if numeric else push(m)
 		if [ vi < mi ] do
 			push(-1)
 			break
