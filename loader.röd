@@ -31,11 +31,12 @@ subglobalImport(INIT_FILE) {
 			createType(ns, type, cns)
 		}
 	}
-	localImportNamespace(INIT_FILE)
+	localImportNamespace(INIT_FILE) | {}
 	{
 		ns := new namespace
 		for action in BILAR_EXPORT_ACTIONS do
 			action(ns)
 		done
+		push(ns)
 	}
 }
