@@ -130,7 +130,7 @@ record PamflettValidator(node, path, print_errors) {
 			validatePamflett elem, validator, path=path.."/[]", print_errors=print_errors for elem in node
 		done
 		if [ node is map ] do
-			validatePamflett node[key], validator, path=path.."/"..key, print_errors=print_errors for key in keys(node)
+			validatePamflett node[key], validator, path=path.."/"..key, print_errors=print_errors for key in [keys(node)]
 		done
 	}
 	

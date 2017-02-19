@@ -87,9 +87,9 @@ function installBil(filename) {
 	
 	/* install executables */
 	
+	exedir := figureOutWhereBilExecutablesAre()
 	for executable in manifest["executables"] do
 		exefile := install_dir .."/".. dname .."/".. executable
-		exedir := figureOutWhereBilExecutablesAre()
 		
 		unless [ fileExists(exefile) and isFile(exefile) ] do
 			errprint("Bil file '", filename, "' is not valid.\n")
@@ -269,6 +269,55 @@ function installBilFromInternet(bil_name, version="", min_version="", max_versio
 	return TRUE
 }
 
+/* does not take dependencies into account */
+/* should not happen, though, if packages use semantic versioning */
+function autoremove {
+	noremove := []
+	noremoved_majors := []
+	remove := []
+	new_db := new map
+	keys(bil_database) | for bil_name do
+		new_db[bil_name] = []
+		for bil in bil_database[bil_name] do
+			major := parseVersion(bil.version)[0]
+			unless [ (bil_name.."."..major) in noremoved_majors ] do
+				noremoved_majors += bil_name.."."..major
+				noremove += bil
+				new_db[bil_name] += bil
+			else
+				remove += bil
+			done
+		done
+	done
+	noremovefiles := []
+	exedir := figureOutWhereBilExecutablesAre()
+	for nb in noremove do
+		manifest := 0
+		try do
+			manifest = readLines(nb.path .."/manifest.pmf") | parsePamflett()
+		catch e
+			errprint("Bil file '", filename, "' is not valid ")
+			errprint("(manifest is corrupt).\n")
+			return FALSE
+		done
+		for executable in manifest["executables"] do
+			base_exe := basename(executable) /*            eg. tool.röd */
+			base_exe ~= ".röd$", "" /* removes .röd suffix eg. tool     */
+			noremovefiles += exedir .. "/" .. base_exe
+		done if [ manifest["executables"]? ]
+	done
+	for rb in remove do
+		logExec "rm", "-rf", rb.path
+	done
+	for file in [ls(exedir)] do
+		logExec "rm", file unless [ file in noremovefiles ]
+	done
+	
+	saveBilDatabase(new_db)
+	
+	return TRUE
+}
+
 function searchBilFromIndex bil_name {
 	index_file := figureOutWhereIsBilarHome() .. "/index.pmf"
 	unless fileExists(index_file) do
@@ -344,7 +393,7 @@ function updateIndex {
 			errprint("Source file is corrupt: ", source, "\n")
 			return FALSE
 		done
-		for key in keys(source_index) do
+		for key in [keys(source_index)] do
 			index[key] = [] unless [ index[key]? ]
 			index[key] .= source_index[key]
 		done
@@ -352,7 +401,7 @@ function updateIndex {
 	
 	index_file := figureOutWhereIsBilarHome() .. "/index.pmf"
 	
-	for key in keys(index) do
+	for key in [keys(index)] do
 		pkg_list = [sort(index[key], cmp={ |a, b|
 			return -compareVersions(a["version"], b["version"])
 		})]

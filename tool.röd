@@ -167,6 +167,22 @@ main path, args... {
 		done
 		return
 	done
+	if itIs("autoremove") do
+		while [ #args > 0 ] do
+			case(args[0]) | pull(itIs, somethingElse)
+			if itIs("-h", "--help") do
+				print "usage: bilar autoremove"
+				return
+			done
+			shift args
+		done
+		if autoremove() do
+			print "Done removing."
+		else
+			print "Failed to autoremove."
+		done
+		return
+	done
 	if itIs("compress") do
 		file := ""
 		while [ #args > 0 ] do
