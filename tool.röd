@@ -144,7 +144,7 @@ main path, args... {
 			done
 			shift args
 		done
-		if installBilFromInternet(file) do
+		if installBilFromInternet(file, version=version) do
 			print "Package is installed."
 		else
 			print "Installation failed."
