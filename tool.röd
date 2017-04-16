@@ -7,6 +7,7 @@ case x {
 help f {
 	f "usage: bilar <command> [<args>]"
 	f "\ngeneral commands:"
+	f "   autoremove - remove packages that are no longer needed"
 	f "   compress - make a new package from a source code folder"
 	f "   get - download and install a bil package from remote repository"
 	f "   info - display information about an installed package"
@@ -42,7 +43,7 @@ main path, args... {
 		return
 	done
 	if itIs("version") do
-		print "Bil Archive v0.2"
+		print "Bil Archive v0.3"
 		return
 	done
 	if itIs("info") do
