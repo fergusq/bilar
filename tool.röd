@@ -43,7 +43,7 @@ main path, args... {
 		return
 	done
 	if itIs("version") do
-		print "Bil Archive v0.3"
+		print "Bil Archive v" .. BILAR_VERSION
 		return
 	done
 	if itIs("info") do
@@ -183,6 +183,24 @@ main path, args... {
 			print "Failed to autoremove."
 		done
 		return
+	done
+	if itIs("remove") do
+		packages := []
+		while [ #args > 0 ] do
+			case(args[0]) | pull(itIs, somethingElse)
+			if itIs("-h", "--help") do
+				print "usage: bilar remove <packages>"
+			done
+			if somethingElse do
+				packages += args[0]
+			done
+			shift args
+		done
+		if removeBilPackage(name) for name in packages do
+			print "Done removing."
+		else
+			print "Failed to remove all packages."
+		done
 	done
 	if itIs("compress") do
 		file := ""

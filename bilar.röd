@@ -2,6 +2,8 @@
 	localImport(BILAR_PATH.."/pamflett.röd")
 	localImport(BILAR_PATH.."/fileutil.röd")
 	VERSION_REGEX := "(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(\\-[0-9A-Za-z\\-]+(\\.[0-9A-Za-z\\-]+)*)?"
+
+	BILAR_VERSION := "0.4"
 }
 
 function findLibrary(libname, min_version, max_version) {
@@ -72,10 +74,11 @@ function compareVersions(version, min_version) {
 	done
 }
 
-record Bil(name, version, path) {
+record Bil(name, version, path, exefiles) {
 	name : string = name
 	version : string = version
 	path : string = path
+	exefiles : list<<string>> = new list<<string>>(exefiles)
 }
 
 function loadBilDatabase() {
@@ -84,20 +87,20 @@ function loadBilDatabase() {
 	if fileExists(home.."/db.pmf") do
 		if isDirectory(home.."/db.pmf") do
 			error("'"..home.."/db.pmf' is corrupt."..
-				"Please move or remove, it will be automatically regenerated.")
+				"Please move or remove, it will be automatically regenerated.\n")
 		done
 		try do
 			db := new map<< list >>
 			dbmap := (readLines(home.."/db.pmf") | parsePamflett())
 			for key in [keys(dbmap)] do
-				db[key] = [push(new Bil(b["name"], b["version"], b["path"])) for b in dbmap[key]]
+				db[key] = [push(new Bil(b["name"], b["version"], b["path"], b["exefiles"])) for b in dbmap[key]]
 			done
 			return db
 		catch e
 			errprint e.message, "\n"
 			errprint c.message, "\n" for c in e.causes
 			errprint("'"..home.."/db.pmf' is corrupt. "..
-				"Please move or remove, it will be automatically regenerated.")
+				"Please move or remove, it will be automatically regenerated.\n")
 			disable_regen = TRUE
 		done
 	done
@@ -115,6 +118,8 @@ function saveBilDatabase(db : map) {
 			print "### name = ", bil.name
 			print "### version = ", bil.version
 			print "### path = ", bil.path
+			print "### exefiles[]:"
+			print file for file in bil.exefiles
 		done
 	done | writeStrings(home.."/db.pmf")
 }
@@ -123,6 +128,7 @@ function loadBilDatabaseFromDirectory() {
 	db := new map<< list >>
 	
 	folder := figureOutWhereBilarAre()
+	exefolder := figureOutWhereBilExecutablesAre()
 	packages := [ls(folder)]
 	bil_names := []
 	
@@ -132,12 +138,29 @@ function loadBilDatabaseFromDirectory() {
 		if [ #fname_arr = 0 ] do
 			error("Folder '"..folder.."' has invalid directory structure: ".. fname .." is not a valid bil package.")
 		done
+		
 		fname_arr() | pull(fname, pname, version)
 		unless [ db[pname]? ] do
 			bil_names += pname
 			db[pname] = new list<<Bil>>
 		done
-		db[pname] += new Bil(pname, version, path)
+		
+		manifest := 0
+		try do
+			manifest = readLines(path .."/manifest.pmf") | parsePamflett()
+		catch e
+			errprint("Bil file '", filename, "' is not valid ")
+			errprint("(manifest is corrupt).\n")
+			return FALSE
+		done
+		
+		exefiles := []
+		for executable in manifest["executables"] do
+			base_exe := basename(executable) /*            eg. tool.röd */
+			base_exe ~= ".röd$", "" /* removes .röd suffix eg. tool     */
+			exefiles += exefolder .. "/" .. base_exe
+		done if [ manifest["executables"]? ]
+		db[pname] += new Bil(pname, version, path, exefiles)
 	done
 	
 	for bil_name in bil_names do

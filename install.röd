@@ -88,6 +88,7 @@ function installBil(filename) {
 	/* install executables */
 	
 	exedir := figureOutWhereBilExecutablesAre()
+	exefiles := []
 	for executable in manifest["executables"] do
 		exefile := install_dir .."/".. dname .."/".. executable
 		
@@ -114,6 +115,8 @@ function installBil(filename) {
 		done
 		cp exefile, exedir.."/"..base_exe
 		chmod "+x", exedir.."/"..base_exe
+		
+		exefiles += exedir.."/"..base_exe
 	done if [ manifest["executables"]? ]
 	
 	/* check that dependencies are fulfilled */
@@ -145,7 +148,7 @@ function installBil(filename) {
 	unless [ bil_database[pname]? ] do
 		bil_database[pname] = new list<<Bil>>
 	done
-	bil_database[pname] += new Bil(pname, version, install_dir .."/".. dname)
+	bil_database[pname] += new Bil(pname, version, install_dir .."/".. dname, exefiles)
 	
 	bil_database[pname] = [sort(bil_database[pname], cmp={ |a, b|
 		return -compareVersions(a.version, b.version)
@@ -276,6 +279,7 @@ function autoremove {
 	noremoved_majors := []
 	remove := []
 	new_db := new map
+	noremovefiles := []
 	keys(bil_database) | for bil_name do
 		new_db[bil_name] = []
 		for bil in bil_database[bil_name] do
@@ -283,38 +287,48 @@ function autoremove {
 			unless [ (bil_name.."."..major) in noremoved_majors ] do
 				noremoved_majors += bil_name.."."..major
 				noremove += bil
+				noremovefiles .= bil.exefiles
 				new_db[bil_name] += bil
 			else
 				remove += bil
 			done
 		done
 	done
-	noremovefiles := []
-	exedir := figureOutWhereBilExecutablesAre()
-	for nb in noremove do
-		manifest := 0
-		try do
-			manifest = readLines(nb.path .."/manifest.pmf") | parsePamflett()
-		catch e
-			errprint("Bil file '", filename, "' is not valid ")
-			errprint("(manifest is corrupt).\n")
-			return FALSE
-		done
-		for executable in manifest["executables"] do
-			base_exe := basename(executable) /*            eg. tool.röd */
-			base_exe ~= ".röd$", "" /* removes .röd suffix eg. tool     */
-			noremovefiles += exedir .. "/" .. base_exe
-		done if [ manifest["executables"]? ]
-	done
 	for rb in remove do
 		logExec "rm", "-rf", rb.path
 	done
+	exedir := figureOutWhereBilExecutablesAre()
 	for file in [ls(exedir)] do
 		logExec "rm", file unless [ file in noremovefiles ]
 	done
 	
 	saveBilDatabase(new_db)
 	
+	return TRUE
+}
+
+function removeBilPackage bil_name {
+	return FALSE unless [ bil_database[bil_name]? ]
+	
+	new_db := new map
+	noremovefiles := []
+	keys(bil_database) | for bil_name2 do
+		new_db[bil_name2] = []
+		for bil in bil_database[bil_name2] do
+			if [ bil_name2 = bil_name ] do
+				logExec "rm", "-rf", bil.path
+			else
+				noremovefiles .= bil.exefiles
+				new_db[bil_name2] += bil
+			done
+		done
+		del new_db[bil_name2] if [ #new_db[bil_name2] = 0 ]
+	done
+	exedir := figureOutWhereBilExecutablesAre()
+	for file in [ls(exedir)] do
+		logExec "rm", file unless [ file in noremovefiles ]
+	done
+	saveBilDatabase(new_db)
 	return TRUE
 }
 
