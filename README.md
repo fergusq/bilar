@@ -44,7 +44,7 @@ java -jar /path/to/röda.jar -e '{BILAR_PATH:="/path/to/bilar";localImport(BILAR
 
 Bilar is able to download packages from the Internet if it has been supplied a package index.
 
-A package index that contains most bil packages created by me is located in `https://iikka.kapsi.fi/bilar/index.pmf`.
+A package index that contains most bil packages created by me is located at `https://iikka.kapsi.fi/bilar/index.pmf`.
 
 To use the index, create a file named `~/.bilar/sources.pmf` with the following content:
 
